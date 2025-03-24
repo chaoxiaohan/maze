@@ -24,8 +24,11 @@ const COLORREF SOLUTION_COLOR = RED;     // 解决路径颜色（红色）
 const COLORREF EXPLORING_COLOR = YELLOW; // 探索中颜色（黄色）
 
 // 定义起点和终点位置
-Point start = {0, 0};
-Point end = {WIDTH / CELL_SIZE - 1, HEIGHT / CELL_SIZE - 1};
+Point start = { 0, 0 };
+Point end = { WIDTH / CELL_SIZE - 1, HEIGHT / CELL_SIZE - 1 };
+
+// 前向声明函数
+bool testPath(int x, int y);
 
 void initMaze() {
     for (int i = 0; i < WIDTH / CELL_SIZE; i++) {
@@ -41,9 +44,11 @@ void drawMaze() {
         for (int j = 0; j < HEIGHT / CELL_SIZE; j++) {
             if (maze[i][j] == 1) { // 墙
                 setfillcolor(WALL_COLOR);
-            } else if (maze[i][j] == 0) { // 通道
+            }
+            else if (maze[i][j] == 0) { // 通道
                 setfillcolor(PATH_COLOR);
-            } else if (maze[i][j] == 2) { // 解决路径
+            }
+            else if (maze[i][j] == 2) { // 解决路径
                 setfillcolor(SOLUTION_COLOR);
             }
             solidrectangle(i * CELL_SIZE, j * CELL_SIZE, (i + 1) * CELL_SIZE, (j + 1) * CELL_SIZE);
@@ -53,16 +58,16 @@ void drawMaze() {
     // 标记起点和终点
     setfillcolor(START_COLOR);
     solidrectangle(start.x * CELL_SIZE, start.y * CELL_SIZE, (start.x + 1) * CELL_SIZE, (start.y + 1) * CELL_SIZE);
-    
+
     setfillcolor(END_COLOR);
     solidrectangle(end.x * CELL_SIZE, end.y * CELL_SIZE, (end.x + 1) * CELL_SIZE, (end.y + 1) * CELL_SIZE);
-    
+
     // 确保绘制操作立即显示
     FlushBatchDraw();
 }
 
 void generateMaze(int x, int y) {
-    int directions[4][2] = {{0, 1}, {1, 0}, {0, -1}, {-1, 0}};
+    int directions[4][2] = { {0, 1}, {1, 0}, {0, -1}, {-1, 0} };
     visited[x][y] = 1;
     maze[x][y] = 0; // 设置为通道（黑色）
 
@@ -89,102 +94,203 @@ void generateMaze(int x, int y) {
     }
 }
 
+// 新增：确保终点可达
+void ensureEndpointAccessible() {
+    // 确保终点是通道
+    maze[end.x][end.y] = 0;
+
+    // 如果终点周围全是墙，至少打通一个方向
+    bool hasPath = false;
+    int dx[] = { -1, 0, 1, 0 };
+    int dy[] = { 0, -1, 0, 1 };
+
+    for (int i = 0; i < 4; i++) {
+        int nx = end.x + dx[i];
+        int ny = end.y + dy[i];
+
+        if (nx >= 0 && nx < WIDTH / CELL_SIZE && ny >= 0 && ny < HEIGHT / CELL_SIZE) {
+            if (maze[nx][ny] == 0) { // 如果周围有通道
+                hasPath = true;
+                break;
+            }
+        }
+    }
+
+    // 如果终点周围没有通道，打通一条路
+    if (!hasPath) {
+        // 尝试打通左边
+        if (end.x > 0) {
+            maze[end.x - 1][end.y] = 0;
+        }
+        // 如果不能打通左边，尝试打通上边
+        else if (end.y > 0) {
+            maze[end.x][end.y - 1] = 0;
+        }
+    }
+}
+
+// 检查从特定位置是否可以到达终点
+bool testPath(int x, int y) {
+    // 如果到达终点，返回true
+    if (x == end.x && y == end.y) {
+        return true;
+    }
+
+    // 标记当前格子为已访问
+    visited[x][y] = 1;
+
+    // 四个方向：上、右、下、左
+    int dx[] = { 0, 1, 0, -1 };
+    int dy[] = { -1, 0, 1, 0 };
+
+    for (int i = 0; i < 4; i++) {
+        int nx = x + dx[i];
+        int ny = y + dy[i];
+
+        // 检查新位置是否有效且是通道且未访问
+        if (nx >= 0 && nx < WIDTH / CELL_SIZE && ny >= 0 && ny < HEIGHT / CELL_SIZE &&
+            maze[nx][ny] == 0 && !visited[nx][ny]) {
+            if (testPath(nx, ny)) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+// 检查是否有从起点到终点的路径
+bool checkPathExists() {
+    // 重置访问数组
+    memset(visited, 0, sizeof(visited));
+
+    // 使用深度优先搜索检查路径
+    return testPath(start.x, start.y);
+}
+
+// 创建从起点到终点的直接路径
+void createDirectPath() {
+    int x = start.x;
+    int y = start.y;
+
+    // 沿着水平方向移动
+    while (x != end.x) {
+        x += (x < end.x) ? 1 : -1;
+        maze[x][y] = 0; // 设置为通道
+    }
+
+    // 然后沿着垂直方向移动
+    while (y != end.y) {
+        y += (y < end.y) ? 1 : -1;
+        maze[x][y] = 0; // 设置为通道
+    }
+}
+
 // 修改求解函数，使其在黑色通道中寻找路径
 int solveMaze(int x, int y, int ex, int ey) {
     if (x == ex && y == ey) {
         maze[x][y] = 2; // 标记终点
         setfillcolor(SOLUTION_COLOR);
         solidrectangle(x * CELL_SIZE, y * CELL_SIZE, (x + 1) * CELL_SIZE, (y + 1) * CELL_SIZE);
-        
+
         // 重新标记终点，确保它始终是蓝色的
         setfillcolor(END_COLOR);
         solidrectangle(end.x * CELL_SIZE, end.y * CELL_SIZE, (end.x + 1) * CELL_SIZE, (end.y + 1) * CELL_SIZE);
-        
+
         FlushBatchDraw(); // 刷新显示
         Sleep(50);
         return 1;
     }
-    
+
     // 注意：这里改为检查是否是通道（maze[x][y] == 0），而不是墙
     if (x < 0 || x >= WIDTH / CELL_SIZE || y < 0 || y >= HEIGHT / CELL_SIZE || maze[x][y] == 1 || visited[x][y]) {
         return 0;
     }
-    
+
     visited[x][y] = 1;
-    
+
     // 临时标记当前探索路径点（黄色）
     setfillcolor(EXPLORING_COLOR);
     solidrectangle(x * CELL_SIZE, y * CELL_SIZE, (x + 1) * CELL_SIZE, (y + 1) * CELL_SIZE);
     FlushBatchDraw(); // 刷新显示
     Sleep(10); // 短暂延迟，使过程可见
-    
-    if (solveMaze(x + 1, y, ex, ey) || solveMaze(x - 1, y, ex, ey) || 
+
+    if (solveMaze(x + 1, y, ex, ey) || solveMaze(x - 1, y, ex, ey) ||
         solveMaze(x, y + 1, ex, ey) || solveMaze(x, y - 1, ex, ey)) {
         maze[x][y] = 2; // 标记为路径
         setfillcolor(SOLUTION_COLOR);
         solidrectangle(x * CELL_SIZE, y * CELL_SIZE, (x + 1) * CELL_SIZE, (y + 1) * CELL_SIZE);
-        
+
         // 重新标记起点，确保它始终是绿色的
         if (x == start.x && y == start.y) {
             setfillcolor(START_COLOR);
             solidrectangle(start.x * CELL_SIZE, start.y * CELL_SIZE, (start.x + 1) * CELL_SIZE, (start.y + 1) * CELL_SIZE);
         }
-        
+
         FlushBatchDraw(); // 刷新显示
         Sleep(50);
         return 1;
     }
-    
+
     // 如果当前点不在路径上，恢复为黑色（通道）
     setfillcolor(PATH_COLOR);
     solidrectangle(x * CELL_SIZE, y * CELL_SIZE, (x + 1) * CELL_SIZE, (y + 1) * CELL_SIZE);
     FlushBatchDraw(); // 刷新显示
     Sleep(10);
-    
+
     return 0;
 }
 
 int main() {
     initgraph(WIDTH, HEIGHT);
     srand(time(NULL));
-    
+
     // 开启批量绘图模式，提高绘图效率
     BeginBatchDraw();
 
     initMaze();
     generateMaze(start.x, start.y);
+
+    // 确保终点可达
+    ensureEndpointAccessible();
+
+    // 检查是否有路径，如果没有，创建一条直接路径
+    if (!checkPathExists()) {
+        createDirectPath();
+    }
+
     drawMaze();
 
     // 显示开始提示
-    RECT r = {WIDTH/2 - 150, HEIGHT/2 - 30, WIDTH/2 + 150, HEIGHT/2 + 30};
+    RECT r = { WIDTH / 2 - 150, HEIGHT / 2 - 30, WIDTH / 2 + 150, HEIGHT / 2 + 30 };
     settextstyle(20, 0, _T("宋体"));
     settextcolor(RED);
     drawtext(_T("绿色: 起点, 蓝色: 终点\n按任意键开始求解"), &r, DT_CENTER | DT_VCENTER);
     FlushBatchDraw();
-    
+
     _getch(); // 等待用户按键
-    
+
     // 重新绘制迷宫（覆盖提示文字）
     drawMaze();
-    
+
     memset(visited, 0, sizeof(visited));
     solveMaze(start.x, start.y, end.x, end.y);
-    
+
     // 重新标记起点和终点，确保它们在求解后仍然可见
     setfillcolor(START_COLOR);
     solidrectangle(start.x * CELL_SIZE, start.y * CELL_SIZE, (start.x + 1) * CELL_SIZE, (start.y + 1) * CELL_SIZE);
-    
+
     setfillcolor(END_COLOR);
     solidrectangle(end.x * CELL_SIZE, end.y * CELL_SIZE, (end.x + 1) * CELL_SIZE, (end.y + 1) * CELL_SIZE);
-    
+
     FlushBatchDraw();
-    
+
     // 显示完成提示
     settextstyle(20, 0, _T("宋体"));
     settextcolor(RED);
     drawtext(_T("迷宫已解决！按任意键退出"), &r, DT_CENTER | DT_VCENTER);
     FlushBatchDraw();
-    
+
     // 结束批量绘图模式
     EndBatchDraw();
 
